@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROBLOX GLOBAL OVERRIDE | SERVER EDITION</title>
+    <style>
+        :root { --neon: #00ffa3; --bg: #050505; --panel: rgba(20, 22, 25, 0.95); }
+        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; overflow-x: hidden; }
+        header { padding: 60px 20px 20px; text-align: center; }
+        header h1 { font-size: 3.5rem; font-weight: 900; letter-spacing: -2px; margin: 0; background: linear-gradient(135deg, #fff 0%, var(--neon) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .console { width: 95%; max-width: 900px; background: var(--panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 40px; box-shadow: 0 0 50px rgba(0,0,0,0.8); backdrop-filter: blur(20px); }
+        .input-group { display: flex; gap: 15px; }
+        input { flex: 1; background: #000; border: 2px solid #222; padding: 22px; border-radius: 18px; color: #fff; font-size: 18px; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--neon); }
+        button { background: var(--neon); color: #000; border: none; padding: 0 45px; border-radius: 18px; font-weight: 900; cursor: pointer; font-size: 16px; transition: 0.2s; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #results { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; margin-top: 40px; }
+        .user-card { background: #0d0e10; border: 1px solid #1a1c20; border-radius: 22px; padding: 25px; text-align: center; animation: slideUp 0.4s ease forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .avatar { width: 110px; height: 110px; border-radius: 50%; border: 3px solid var(--neon); margin-bottom: 15px; background: #000; }
+        .display-name { font-weight: 800; font-size: 1.2rem; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .username { color: #666; font-size: 0.9rem; margin-bottom: 15px; }
+        .status-bar { margin-top: 20px; font-size: 13px; color: #555; display: flex; align-items: center; gap: 10px; }
+        .pulse { width: 8px; height: 8px; background: var(--neon); border-radius: 50%; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        .btn-link { display: block; background: #1a1c20; color: var(--neon); text-decoration: none; padding: 10px; border-radius: 10px; font-size: 12px; font-weight: bold; border: 1px solid transparent; transition: 0.2s; }
+        .btn-link:hover { border-color: var(--neon); background: #000; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>SYSTEM OVERRIDE</h1>
+    </header>
+
+    <div class="console">
+        <div class="input-group">
+            <input type="text" id="targetInput" placeholder="TARGET DISPLAY NAME..." onkeypress="if(event.key==='Enter') startScan()">
+            <button id="execBtn" onclick="startScan()">EXECUTE</button>
+        </div>
+        <div class="status-bar"><div class="pulse"></div> <span id="log">AWAITING TARGET COMMAND...</span></div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function startScan() {
+            const query = document.getElementById('targetInput').value.trim();
+            const resultsDiv = document.getElementById('results');
+            const log = document.getElementById('log');
+            const btn = document.getElementById('execBtn');
+
+            if (!query) return;
+
+            btn.disabled = true;
+            resultsDiv.innerHTML = '';
+            log.innerHTML = "PINGING INTERNAL SERVER...";
+
+            try {
+                // Hitting your own API instead of a public proxy!
+                const searchRes = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+                const data = await searchRes.json();
+
+                if (!data.data || data.data.length === 0) {
+                    log.innerHTML = "NO ENTRIES FOUND IN DATABASE.";
+                    btn.disabled = false;
+                    return;
+                }
+
+                log.innerHTML = "EXTRACTING VISUAL DATA...";
+                const ids = data.data.map(u => u.id).join(',');
+                
+                // Hitting your own thumbnail API
+                const thumbRes = await fetch(`/api/thumbnails?userIds=${ids}`);
+                const thumbData = await thumbRes.json();
+                
+                const thumbMap = {};
+                if (thumbData.data) {
+                    thumbData.data.forEach(t => thumbMap[t.targetId] = t.imageUrl);
+                }
+
+                resultsDiv.innerHTML = '';
+                data.data.forEach(user => {
+                    const img = thumbMap[user.id] || '';
+                    const card = document.createElement('div');
+                    card.className = 'user-card';
+                    card.innerHTML = `
+                        <img src="${img}" class="avatar">
+                        <div class="display-name">${user.displayName}</div>
+                        <div class="username">@${user.name}</div>
+                        <a href="https://www.roblox.com/users/${user.id}/profile" target="_blank" class="btn-link">ACCESS DOSSIER</a>
+                    `;
+                    resultsDiv.appendChild(card);
+                });
+
+                log.innerHTML = `SUCCESS: ACQUIRED ${data.data.length} TARGETS.`;
+                btn.disabled = false;
+
+            } catch (err) {
+                log.innerHTML = "SERVER ERROR. PLEASE TRY AGAIN.";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
