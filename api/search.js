@@ -1,32 +1,22 @@
 export default async function handler(req, res) {
     const { query } = req.query;
-    if (!query) return res.status(400).json({ error: "No query provided" });
+    if (!query) return res.status(400).json({ error: "No query" });
 
-    const targetUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(query)}&limit=24`;
+    // IP SPOOFING: Tricks the proxy into thinking every search is a brand new person
+    const spoofedIP = `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
 
-    // Server-to-Server Rotation: These nodes strip the CAPTCHA before Vercel reads it
-    const proxies = [
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-        `https://users.roproxy.com/v1/users/search?keyword=${encodeURIComponent(query)}&limit=24`
-    ];
-
-    for (let url of proxies) {
-        try {
-            const response = await fetch(url);
-            if (!response.ok) continue; // If Node 1 is blocked, instantly hit Node 2
-            
-            const data = await response.json();
-            
-            // Verify we actually got Roblox data, not a security page
-            if (data && data.data) {
-                return res.status(200).json(data);
+    try {
+        const url = `https://users.roproxy.com/v1/users/search?keyword=${encodeURIComponent(query)}&limit=24`;
+        const response = await fetch(url, {
+            headers: {
+                "X-Forwarded-For": spoofedIP,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
             }
-        } catch (e) {
-            continue;
-        }
+        });
+        
+        const data = await response.json();
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(500).json({ error: "Dead Connection" });
     }
-    
-    // If all fail, throw an error so the frontend knows it's a network issue, not a missing player
-    res.status(500).json({ error: "Global proxy network offline" });
 }
