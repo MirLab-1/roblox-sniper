@@ -1,30 +1,32 @@
-// api/search.js
 export default async function handler(req, res) {
     const { query } = req.query;
     if (!query) return res.status(400).json({ error: "No query provided" });
 
-    // The Disguise: Tells Roblox this request is coming from a normal Chrome browser
-    const headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Origin": "https://www.roblox.com"
-    };
+    const targetUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(query)}&limit=24`;
 
-    try {
-        // Attempt 1: Direct to Roblox with browser headers
-        let url = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(query)}&limit=24`;
-        let response = await fetch(url, { headers });
-        let data = await response.json();
+    // Server-to-Server Rotation: These nodes strip the CAPTCHA before Vercel reads it
+    const proxies = [
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+        `https://users.roproxy.com/v1/users/search?keyword=${encodeURIComponent(query)}&limit=24`
+    ];
 
-        // Attempt 2: If Roblox blocked Vercel's IP, silently failover to proxy
-        if (!data.data) {
-            url = `https://users.roproxy.com/v1/users/search?keyword=${encodeURIComponent(query)}&limit=24`;
-            response = await fetch(url, { headers });
-            data = await response.json();
+    for (let url of proxies) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) continue; // If Node 1 is blocked, instantly hit Node 2
+            
+            const data = await response.json();
+            
+            // Verify we actually got Roblox data, not a security page
+            if (data && data.data) {
+                return res.status(200).json(data);
+            }
+        } catch (e) {
+            continue;
         }
-
-        res.status(200).json(data);
-    } catch (error) {
-        res.status(500).json({ error: "Failed to communicate with Database" });
     }
+    
+    // If all fail, throw an error so the frontend knows it's a network issue, not a missing player
+    res.status(500).json({ error: "Global proxy network offline" });
 }
