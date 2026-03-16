@@ -1,29 +1,21 @@
 export default async function handler(req, res) {
     const { userIds } = req.query;
-    if (!userIds) return res.status(400).json({ error: "No IDs provided" });
+    if (!userIds) return res.status(400).json({ error: "No IDs" });
 
-    const targetUrl = `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userIds}&size=150x150&format=Png&isCircular=true`;
+    const spoofedIP = `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
 
-    const proxies = [
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-        `https://thumbnails.roproxy.com/v1/users/avatar-headshot?userIds=${userIds}&size=150x150&format=Png&isCircular=true`
-    ];
-
-    for (let url of proxies) {
-        try {
-            const response = await fetch(url);
-            if (!response.ok) continue;
-            
-            const data = await response.json();
-            
-            if (data && data.data) {
-                return res.status(200).json(data);
+    try {
+        const url = `https://thumbnails.roproxy.com/v1/users/avatar-headshot?userIds=${userIds}&size=150x150&format=Png&isCircular=true`;
+        const response = await fetch(url, {
+            headers: {
+                "X-Forwarded-For": spoofedIP,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
             }
-        } catch (e) {
-            continue;
-        }
+        });
+        
+        const data = await response.json();
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(500).json({ error: "Dead Connection" });
     }
-
-    res.status(500).json({ error: "Failed to pull image data" });
 }
